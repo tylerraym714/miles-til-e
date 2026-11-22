@@ -53,7 +53,8 @@ details summary{font-weight:600;padding:2px 0}
 <main>
 <h1 style="display:flex;align-items:center;gap:10px"><img src="icon-192.png" alt="" width="40" height="40" style="border-radius:9px">Miles til E</h1>
 
-<div class="vrow"><select id="veh" aria-label="Vehicle"></select><button class="ghost" id="addv">Add vehicle</button></div>
+<div class="vrow"><select id="veh" aria-label="Vehicle"></select><button class="ghost" id="addv">Add vehicle</button><button class="ghost" id="joinv">Join</button></div>
+<p class="note" id="sync" style="margin:-6px 0 12px"></p>
 
 <section class="card" aria-live="polite">
 <label for="cur">Odometer now</label>
@@ -91,6 +92,10 @@ details summary{font-weight:600;padding:2px 0}
 <label for="s1" style="margin-top:12px">Miles per gallon</label><input id="s1" type="number" step="0.1">
 <label for="s2" style="margin-top:12px">Refuel cushion (miles)</label><input id="s2" type="number">
 <label for="s3" style="margin-top:12px">One tank holds (gallons)</label><input id="s3" type="number" step="0.1">
+<p class="note" id="code"></p>
+<button class="ghost" id="sharev" style="margin-top:12px">Share this vehicle</button>
+<button class="ghost" id="sendv" style="margin-top:12px" hidden>Send share code</button>
+<button class="ghost" id="unsharev" style="margin-top:12px" hidden>Stop sharing on this phone</button>
 <label class="chk"><input id="auto" type="checkbox"> Auto-adjust mpg from my log</label>
 <p class="note" id="cal"></p>
 <button class="ghost" id="delv" style="margin-top:16px">Delete this vehicle</button>
@@ -98,6 +103,7 @@ details summary{font-weight:600;padding:2px 0}
 </details>
 </section>
 </main>
+<script src="sync.js"></script>
 <script>
 var K="f150fuel-v3";
 function mk(n){return {id:"v"+Date.now()+Math.floor(Math.random()*1000),name:n,mpg:20,cushion:30,tank:15,log:[]}}
@@ -137,21 +143,21 @@ function hist(){
   li.innerHTML="<span>"+e.d+" · "+(e.odo||"–")+"</span><span>+"+e.gal+" gal</span>";
   h.appendChild(li)});
 }
-function settings(){$("auto").checked=S.auto!==false;$("cal").textContent=S.calMsg||"";$("s0").value=S.name;$("s1").value=S.mpg;$("s2").value=S.cushion;$("s3").value=S.tank}
+function settings(){$("auto").checked=S.auto!==false;$("cal").textContent=S.calMsg||"";$("s0").value=S.name;$("s1").value=S.mpg;$("s2").value=S.cushion;$("s3").value=S.tank;shareUI()}
 $("cur").addEventListener("input",draw);
 $("add").onclick=function(){
  var o=parseFloat($("fo").value),g=parseFloat($("fg").value),f=$("fmsg");
  if(isNaN(o)||isNaN(g)||g<=0){f.textContent="Enter the odometer and the gallons added.";return}
  if(last()&&o<last().odo){f.textContent="Odometer is lower than your last entry ("+last().odo+").";return}
  var before=est(o),after=$("ff").checked?S.tank:before+g;
- S.log.push({d:today(),odo:o,gal:g,after:r1(after)});calib(S);
+ S.log.push({id:newId(),t:Date.now(),full:$("ff").checked,d:today(),odo:o,gal:g,after:r1(after)});if(S.shared){rebuild(S);var vv=S;setTimeout(function(){sync(vv)},0)}calib(S);
  save();$("fo").value="";$("fg").value="";$("ff").checked=false;$("cur").value=o;
  f.textContent="Saved.";hist();settings();draw();
 };
-$("undo").onclick=function(){if(S.log.length>0){S.log.pop();save();$("cur").value=last()?last().odo:"";hist();draw();$("fmsg").textContent=""}};
-$("reset").onclick=function(){if(confirm("Clear every entry and start fresh?")){S.log=[];save();$("cur").value="";hist();draw();$("fmsg").textContent=""}};
+$("undo").onclick=function(){if(S.log.length>0){var x=S.log.pop();if(S.shared){if(x.id)S.dead[x.id]=1;rebuild(S);var vv2=S;setTimeout(function(){sync(vv2)},0)}save();$("cur").value=last()?last().odo:"";hist();draw();$("fmsg").textContent=""}};
+$("reset").onclick=function(){if(S.shared){alert("This vehicle is shared, so clearing it would erase it for everyone. Use Delete last entry, or stop sharing first.");return}if(confirm("Clear every entry and start fresh?")){S.log=[];save();$("cur").value="";hist();draw();$("fmsg").textContent=""}};
 [["s1","mpg"],["s2","cushion"],["s3","tank"]].forEach(function(p){
- $(p[0]).addEventListener("change",function(){var v=parseFloat(this.value);if(v>0){S[p[1]]=v;save();draw()}})});
+ $(p[0]).addEventListener("change",function(){var v=parseFloat(this.value);if(v>0){S[p[1]]=v;save();if(S.shared&&p[1]!=="mpg")pushMeta(S);draw()}})});
 function calib(v){
  if(v.auto===false)return;
  var L=v.log;if(!L.length)return;
@@ -168,13 +174,13 @@ function calib(v){
  var m=miles/gal,nm=Math.round(Math.min(v.mpg*1.15,Math.max(v.mpg*0.85,m))*10)/10;
  v.calMsg="Last check: "+r1(m)+" mpg over "+miles+" miles and "+r1(gal)+" gallons. Now using "+nm+".";
  v.mpg=nm}
-function vsel(){var s=$("veh");s.innerHTML="";DB.v.forEach(function(x){var o=document.createElement("option");o.value=x.id;o.textContent=x.name;if(x.id===DB.a)o.selected=true;s.appendChild(o)})}
+function vsel(){var s=$("veh");s.innerHTML="";DB.v.forEach(function(x){var o=document.createElement("option");o.value=x.id;o.textContent=x.name+(x.shared?" (shared)":"");if(x.id===DB.a)o.selected=true;s.appendChild(o)})}
 function refresh(){vsel();$("cur").value=last()?last().odo:"";settings();$("fmsg").textContent="";hist();draw()}
-$("veh").onchange=function(){DB.a=this.value;pick();save();refresh()};
+$("veh").onchange=function(){DB.a=this.value;pick();save();refresh();sync(S)};
 $("addv").onclick=function(){var n=prompt("Name for the new vehicle?");if(n&&n.trim()){var v=mk(n.trim().slice(0,30));DB.v.push(v);DB.a=v.id;pick();save();refresh()}};
-$("s0").addEventListener("change",function(){var n=this.value.trim();if(n){S.name=n.slice(0,30);save();vsel()}});
-$("delv").onclick=function(){if(confirm("Delete "+S.name+" and all its entries?")){var id=S.id;DB.v=DB.v.filter(function(x){return x.id!==id});if(!DB.v.length)DB.v.push(mk("My vehicle"));DB.a=DB.v[0].id;pick();save();refresh()}};
-DB.v.forEach(calib);save();refresh();
+$("s0").addEventListener("change",function(){var n=this.value.trim();if(n){S.name=n.slice(0,30);save();vsel();if(S.shared)pushMeta(S)}});
+$("delv").onclick=function(){if(confirm("Delete "+S.name+(S.shared?" from this phone? The shared log stays online for others.":" and all its entries?"))){var id=S.id;DB.v=DB.v.filter(function(x){return x.id!==id});if(!DB.v.length)DB.v.push(mk("My vehicle"));DB.a=DB.v[0].id;pick();save();refresh()}};
+DB.v.forEach(calib);save();wireSync();refresh();sync(S);
 if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(function(){})}
 </script>
 </body>
