@@ -23,8 +23,8 @@ main{max-width:480px;margin:0 auto;padding:16px 16px 40px}
 h1{font:700 22px/1 "Barlow Condensed",sans-serif;letter-spacing:.02em;margin:4px 0 14px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
 label{display:block;font-size:14px;color:var(--mute);margin-bottom:4px}
-input[type=number]{width:100%;font:600 20px Barlow,sans-serif;color:var(--ink);background:transparent;border:0;border-bottom:2px solid var(--line);padding:6px 0;border-radius:0}
-input[type=number]:focus{outline:none;border-color:var(--ink)}
+input[type=number],input[type=text]{width:100%;font:600 20px Barlow,sans-serif;color:var(--ink);background:transparent;border:0;border-bottom:2px solid var(--line);padding:6px 0;border-radius:0}
+input[type=number]:focus,input[type=text]:focus{outline:none;border-color:var(--ink)}
 button{font:600 17px Barlow,sans-serif;color:var(--bg);background:var(--ink);border:0;border-radius:8px;padding:13px 16px;width:100%;margin-top:12px}
 button.ghost{background:transparent;color:var(--mute);border:1px solid var(--line);font-size:15px;padding:9px}
 button:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
@@ -43,12 +43,17 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-of
 ul{list-style:none;margin:0;padding:0}
 li{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
 li span:last-child{color:var(--mute)}
+select{flex:1;min-width:0;font:600 18px Barlow,sans-serif;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px}
+.vrow{display:flex;gap:10px;align-items:stretch;margin-bottom:14px}
+.vrow button{width:auto;margin:0;font-size:15px}
 details summary{font-weight:600;padding:2px 0}
 </style>
 </head>
 <body>
 <main>
 <h1 style="display:flex;align-items:center;gap:10px"><img src="icon-192.png" alt="" width="40" height="40" style="border-radius:9px">Miles til E</h1>
+
+<div class="vrow"><select id="veh" aria-label="Vehicle"></select><button class="ghost" id="addv">Add vehicle</button></div>
 
 <section class="card" aria-live="polite">
 <label for="cur">Odometer now</label>
@@ -82,23 +87,29 @@ details summary{font-weight:600;padding:2px 0}
 
 <section class="card">
 <details><summary>Settings</summary>
+<label for="s0" style="margin-top:12px">Vehicle name</label><input id="s0" type="text" maxlength="30">
 <label for="s1" style="margin-top:12px">Miles per gallon</label><input id="s1" type="number" step="0.1">
 <label for="s2" style="margin-top:12px">Refuel cushion (miles)</label><input id="s2" type="number">
 <label for="s3" style="margin-top:12px">One tank holds (gallons)</label><input id="s3" type="number" step="0.1">
+<button class="ghost" id="delv" style="margin-top:16px">Delete this vehicle</button>
 <p class="note">Estimates only. The first entry assumes the tank was empty before it. Check the gauge and leave a margin.</p>
 </details>
 </section>
 </main>
 <script>
-var K="f150fuel-v2";
-var DEF={mpg:12,cushion:30,tank:18.5,log:[{"d":"7/29","odo":11245,"gal":13.93},{"d":"7/31","odo":11382,"gal":19.32},{"d":"8/2","odo":11634,"gal":3.33},{"d":"8/3","odo":11660,"gal":1.14},{"d":"8/4","odo":11698,"gal":1.39},{"d":"8/4","odo":11714,"gal":5.41},{"d":"8/5","odo":11788,"gal":2.22},{"d":"8/7","odo":11808,"gal":9.06},{"d":"8/8","odo":11881,"gal":6.47},{"d":"8/10","odo":11952,"gal":5.99},{"d":"8/14","odo":12085,"gal":11.46},{"d":"8/15","odo":12228,"gal":5.94},{"d":"8/17","odo":12326,"gal":4.29},{"d":"8/19","odo":12359,"gal":5.82},{"d":"8/20","odo":12436,"gal":2.73},{"d":"8/21","odo":12488,"gal":8.75},{"d":"9/4","odo":12593,"gal":4.0},{"d":"9/7","odo":12668,"gal":2.63},{"d":"9/8","odo":12693,"gal":2.59},{"d":"9/10","odo":12759,"gal":2.59},{"d":"9/11","odo":12791,"gal":5.13},{"d":"9/11","odo":12842,"gal":2.6},{"d":"9/14","odo":12909,"gal":15.09},{"d":"9/14","odo":13064,"gal":6.95},{"d":"9/16","odo":13124,"gal":5.35},{"d":"9/23","odo":13219,"gal":18.03},{"d":"9/23","odo":null,"gal":5.45},{"d":"10/1","odo":13471,"gal":2.5},{"d":"10/3","odo":13495,"gal":2.65},{"d":"10/8","odo":13560,"gal":2.0},{"d":"10/8","odo":13576,"gal":2.57},{"d":"10/13","odo":13620,"gal":3.28},{"d":"10/13","odo":13652,"gal":2.51},{"d":"10/14","odo":13667,"gal":2.05},{"d":"10/14","odo":13696,"gal":12.9},{"d":"10/21","odo":13852,"gal":3.16},{"d":"10/22","odo":13887,"gal":2.7},{"d":"10/22","odo":13935,"gal":4.06},{"d":"10/29","odo":13979,"gal":2.59},{"d":"10/29","odo":14028,"gal":2.13},{"d":"10/31","odo":14053,"gal":2.7},{"d":"11/2","odo":14086,"gal":5.27},{"d":"11/3","odo":14120,"gal":5.41},{"d":"11/7","odo":14175,"gal":1.41},{"d":"11/7","odo":14190,"gal":5.55},{"d":"11/10","odo":14286,"gal":2.78},{"d":"11/11","odo":14388,"gal":8.83},{"d":"11/13","odo":14428,"gal":2.94},{"d":"11/14","odo":14463,"gal":2.94},{"d":"11/14","odo":14485,"gal":2.94},{"d":"11/15","odo":14522,"gal":2.94},{"d":"11/15","odo":14572,"gal":3.18},{"d":"11/15","odo":14600,"gal":5.72},{"d":"11/15","odo":14659,"gal":1.59},{"d":"11/16","odo":14690,"gal":4.22},{"d":"11/16","odo":14755,"gal":3.28},{"d":"11/16","odo":14783,"gal":3.12},{"d":"11/17","odo":14821,"gal":2.78},{"d":"11/19","odo":14848,"gal":4.75},{"d":"11/20","odo":14900,"gal":1.61},{"d":"11/20","odo":14945,"gal":2.94},{"d":"11/21","odo":14970,"gal":3.27,"after":4.3},{"d":"11/22","odo":14985,"gal":3.33,"after":6.3}]};
+var K="f150fuel-v3";
+function mk(n){return {id:"v"+Date.now()+Math.floor(Math.random()*1000),name:n,mpg:20,cushion:30,tank:15,log:[]}}
+var DB=null;
+try{DB=JSON.parse(localStorage.getItem(K)||"null")}catch(e){DB=null}
+if(!DB||!Array.isArray(DB.v)||!DB.v.length){
+ var old=null;try{old=JSON.parse(localStorage.getItem("f150fuel-v2")||"null")}catch(e){old=null}
+ var v0=mk(old?"Vehicle 1":"My vehicle");
+ if(old&&Array.isArray(old.log)){v0.mpg=old.mpg||v0.mpg;v0.cushion=old.cushion||v0.cushion;v0.tank=old.tank||v0.tank;v0.log=old.log}
+ DB={v:[v0],a:v0.id}}
 var S;
-try{var raw=localStorage.getItem(K);S=raw?JSON.parse(raw):null}catch(e){S=null}
-if(!S||!Array.isArray(S.log)){S=JSON.parse(JSON.stringify(DEF));
- try{var old=JSON.parse(localStorage.getItem("f150fuel-v1")||"null");
-  if(old&&old.log){S.mpg=old.mpg||S.mpg;S.cushion=old.cushion||S.cushion;S.tank=old.tank||S.tank;
-   old.log.forEach(function(e){if(e.odo>14985)S.log.push(e)})}}catch(e){}}
-function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}}
+function pick(){S=DB.v.filter(function(x){return x.id===DB.a})[0]||DB.v[0];DB.a=S.id}
+pick();
+function save(){try{localStorage.setItem(K,JSON.stringify(DB))}catch(e){}}
 function $(i){return document.getElementById(i)}
 function last(){return S.log[S.log.length-1]}
 function est(odo){var l=last();if(!l)return 0;var base=(typeof l.after==="number"&&isFinite(l.after))?l.after:l.gal;if(!l.odo)return base;return Math.max(0,base-(odo-l.odo)/S.mpg)}
@@ -124,7 +135,7 @@ function hist(){
   li.innerHTML="<span>"+e.d+" · "+(e.odo||"–")+"</span><span>+"+e.gal+" gal</span>";
   h.appendChild(li)});
 }
-function settings(){$("s1").value=S.mpg;$("s2").value=S.cushion;$("s3").value=S.tank}
+function settings(){$("s0").value=S.name;$("s1").value=S.mpg;$("s2").value=S.cushion;$("s3").value=S.tank}
 $("cur").addEventListener("input",draw);
 $("add").onclick=function(){
  var o=parseFloat($("fo").value),g=parseFloat($("fg").value),f=$("fmsg");
@@ -139,7 +150,13 @@ $("undo").onclick=function(){if(S.log.length>0){S.log.pop();save();$("cur").valu
 $("reset").onclick=function(){if(confirm("Clear every entry and start fresh?")){S.log=[];save();$("cur").value="";hist();draw();$("fmsg").textContent=""}};
 [["s1","mpg"],["s2","cushion"],["s3","tank"]].forEach(function(p){
  $(p[0]).addEventListener("change",function(){var v=parseFloat(this.value);if(v>0){S[p[1]]=v;save();draw()}})});
-$("cur").value=last()?last().odo:"";settings();hist();draw();
+function vsel(){var s=$("veh");s.innerHTML="";DB.v.forEach(function(x){var o=document.createElement("option");o.value=x.id;o.textContent=x.name;if(x.id===DB.a)o.selected=true;s.appendChild(o)})}
+function refresh(){vsel();$("cur").value=last()?last().odo:"";settings();$("fmsg").textContent="";hist();draw()}
+$("veh").onchange=function(){DB.a=this.value;pick();save();refresh()};
+$("addv").onclick=function(){var n=prompt("Name for the new vehicle?");if(n&&n.trim()){var v=mk(n.trim().slice(0,30));DB.v.push(v);DB.a=v.id;pick();save();refresh()}};
+$("s0").addEventListener("change",function(){var n=this.value.trim();if(n){S.name=n.slice(0,30);save();vsel()}});
+$("delv").onclick=function(){if(confirm("Delete "+S.name+" and all its entries?")){var id=S.id;DB.v=DB.v.filter(function(x){return x.id!==id});if(!DB.v.length)DB.v.push(mk("My vehicle"));DB.a=DB.v[0].id;pick();save();refresh()}};
+refresh();
 if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(function(){})}
 </script>
 </body>
