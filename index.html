@@ -91,6 +91,8 @@ details summary{font-weight:600;padding:2px 0}
 <label for="s1" style="margin-top:12px">Miles per gallon</label><input id="s1" type="number" step="0.1">
 <label for="s2" style="margin-top:12px">Refuel cushion (miles)</label><input id="s2" type="number">
 <label for="s3" style="margin-top:12px">One tank holds (gallons)</label><input id="s3" type="number" step="0.1">
+<label class="chk"><input id="auto" type="checkbox"> Auto-adjust mpg from my log</label>
+<p class="note" id="cal"></p>
 <button class="ghost" id="delv" style="margin-top:16px">Delete this vehicle</button>
 <p class="note">Estimates only. The first entry assumes the tank was empty before it. Check the gauge and leave a margin.</p>
 </details>
@@ -135,28 +137,44 @@ function hist(){
   li.innerHTML="<span>"+e.d+" · "+(e.odo||"–")+"</span><span>+"+e.gal+" gal</span>";
   h.appendChild(li)});
 }
-function settings(){$("s0").value=S.name;$("s1").value=S.mpg;$("s2").value=S.cushion;$("s3").value=S.tank}
+function settings(){$("auto").checked=S.auto!==false;$("cal").textContent=S.calMsg||"";$("s0").value=S.name;$("s1").value=S.mpg;$("s2").value=S.cushion;$("s3").value=S.tank}
 $("cur").addEventListener("input",draw);
 $("add").onclick=function(){
  var o=parseFloat($("fo").value),g=parseFloat($("fg").value),f=$("fmsg");
  if(isNaN(o)||isNaN(g)||g<=0){f.textContent="Enter the odometer and the gallons added.";return}
  if(last()&&o<last().odo){f.textContent="Odometer is lower than your last entry ("+last().odo+").";return}
  var before=est(o),after=$("ff").checked?S.tank:before+g;
- S.log.push({d:today(),odo:o,gal:g,after:r1(after)});
+ S.log.push({d:today(),odo:o,gal:g,after:r1(after)});calib(S);
  save();$("fo").value="";$("fg").value="";$("ff").checked=false;$("cur").value=o;
- f.textContent="Saved.";hist();draw();
+ f.textContent="Saved.";hist();settings();draw();
 };
 $("undo").onclick=function(){if(S.log.length>0){S.log.pop();save();$("cur").value=last()?last().odo:"";hist();draw();$("fmsg").textContent=""}};
 $("reset").onclick=function(){if(confirm("Clear every entry and start fresh?")){S.log=[];save();$("cur").value="";hist();draw();$("fmsg").textContent=""}};
 [["s1","mpg"],["s2","cushion"],["s3","tank"]].forEach(function(p){
  $(p[0]).addEventListener("change",function(){var v=parseFloat(this.value);if(v>0){S[p[1]]=v;save();draw()}})});
+function calib(v){
+ if(v.auto===false)return;
+ var L=v.log;if(!L.length)return;
+ var key=L.length+":"+L[L.length-1].odo;
+ if(v.calKey===key)return;
+ v.calKey=key;
+ var e=[],carry=0;
+ L.forEach(function(x){if(x.odo){e.push({o:x.odo,g:x.gal+carry});carry=0}else{carry+=x.gal}});
+ var need=2*v.tank,gal=0,j=-1,i;
+ for(i=e.length-1;i>=1;i--){gal+=e[i].g;if(gal>=need&&e.length-i>=6){j=i-1;break}}
+ if(j<0){var have=0;for(i=1;i<e.length;i++)have+=e[i].g;v.calMsg="MPG check needs about "+Math.round(need)+" gallons logged. You have "+Math.round(have)+".";return}
+ var miles=e[e.length-1].o-e[j].o;
+ if(miles<=0){v.calMsg="MPG check skipped: odometer readings don’t add up.";return}
+ var m=miles/gal,nm=Math.round(Math.min(v.mpg*1.15,Math.max(v.mpg*0.85,m))*10)/10;
+ v.calMsg="Last check: "+r1(m)+" mpg over "+miles+" miles and "+r1(gal)+" gallons. Now using "+nm+".";
+ v.mpg=nm}
 function vsel(){var s=$("veh");s.innerHTML="";DB.v.forEach(function(x){var o=document.createElement("option");o.value=x.id;o.textContent=x.name;if(x.id===DB.a)o.selected=true;s.appendChild(o)})}
 function refresh(){vsel();$("cur").value=last()?last().odo:"";settings();$("fmsg").textContent="";hist();draw()}
 $("veh").onchange=function(){DB.a=this.value;pick();save();refresh()};
 $("addv").onclick=function(){var n=prompt("Name for the new vehicle?");if(n&&n.trim()){var v=mk(n.trim().slice(0,30));DB.v.push(v);DB.a=v.id;pick();save();refresh()}};
 $("s0").addEventListener("change",function(){var n=this.value.trim();if(n){S.name=n.slice(0,30);save();vsel()}});
 $("delv").onclick=function(){if(confirm("Delete "+S.name+" and all its entries?")){var id=S.id;DB.v=DB.v.filter(function(x){return x.id!==id});if(!DB.v.length)DB.v.push(mk("My vehicle"));DB.a=DB.v[0].id;pick();save();refresh()}};
-refresh();
+DB.v.forEach(calib);save();refresh();
 if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(function(){})}
 </script>
 </body>
