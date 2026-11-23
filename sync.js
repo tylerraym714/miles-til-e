@@ -22,7 +22,7 @@ function sync(v){
    if(e.del){v.dead[id]=1;v.log=v.log.filter(function(x){return x.id!==id})}
    else if(!v.dead[id]&&!v.log.some(function(x){return x.id===id})){e.id=id;v.log.push(e)}});
   var jobs=[];
-  v.log.forEach(function(e){if(!re[e.id])jobs.push(fbx("PUT",base+"/entries/"+e.id,{d:e.d,odo:e.odo||null,gal:e.gal,full:!!e.full,t:e.t||0,a:e.a}))});
+  v.log.forEach(function(e){if(!re[e.id])jobs.push(fbx("PUT",base+"/entries/"+e.id,{d:e.d,odo:e.odo||null,gal:e.gal,full:!!e.full,t:e.t||0,a:e.a,park:e.park||undefined}))});
   Object.keys(v.dead).forEach(function(id){if(!re[id]||!re[id].del)jobs.push(fbx("PUT",base+"/entries/"+id,{del:true,t:Date.now()}))});
   if(r.meta){if((r.meta.t||0)>(v.metaT||0)){v.name=r.meta.name||v.name;v.tank=r.meta.tank||v.tank;v.cushion=r.meta.cushion||v.cushion;v.metaT=r.meta.t}}
   else jobs.push(fbx("PUT",base+"/meta",metaOf(v)));
@@ -32,6 +32,15 @@ function sync(v){
  }).catch(function(){v.syncMsg="Shared · can’t reach the online log. Showing this phone’s copy."}).then(function(){v.busy=false;save();if(v===S)uiSync(prev)})}
 function sendCode(v){var t="Join my vehicle “"+v.name+"” in Miles til E. Tap Join and enter this code: "+fmtCode(v.shared);if(navigator.share){navigator.share({text:t}).catch(function(){})}else{prompt("Copy this code and send it:",fmtCode(v.shared))}}
 function wireSync(){
+ $("park").onclick=function(){var o=parseFloat($("cur").value),m=$("pmsg"),L=last();
+  if(isNaN(o)){m.textContent="Type your odometer reading first.";return}
+  if(L&&o<L.odo){m.textContent="That’s lower than your last entry ("+L.odo+").";return}
+  if(L&&o===L.odo){m.textContent="No new miles since your last entry.";return}
+  var after=r1(est(o));
+  if(L&&L.park){var x=S.log.pop();if(S.shared&&x.id)S.dead[x.id]=1}
+  S.log.push({id:newId(),t:Date.now(),park:true,d:today(),odo:o,gal:0,after:after});
+  if(S.shared){rebuild(S);var vv=S;setTimeout(function(){sync(vv)},0)}
+  calib(S);save();hist();draw();m.textContent="Saved. About "+r1(est(o))+" gallons left at "+o+"."};
  $("sharev").onclick=function(){var v=S;if(!confirm("Share this vehicle? Anyone with the code can see and add to its log."))return;
   v.shared=genCode();v.dead={};v.metaT=Date.now();v.log.forEach(function(e){if(!e.id)e.id=newId();if(!e.t)e.t=0});var top=v.log.slice().sort(function(a,b){return (b.odo||0)-(a.odo||0)})[0];if(top&&typeof top.after==="number"&&isFinite(top.after))top.a=top.after;rebuild(v);save();shareUI();
   fbx("PUT","/shared/"+v.shared+"/meta",metaOf(v)).then(function(){return sync(v)}).then(function(){sendCode(v)}).catch(function(){v.shared=null;save();shareUI();alert("Couldn’t reach the online database. Try again with a connection.")})};
@@ -46,4 +55,3 @@ function wireSync(){
  setInterval(function(){if(!document.hidden&&S&&S.shared)sync(S)},20000);
  document.addEventListener("visibilitychange",function(){if(!document.hidden&&S&&S.shared)sync(S)});
  window.addEventListener("online",function(){if(S&&S.shared)sync(S)})}
-                           
