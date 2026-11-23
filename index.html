@@ -59,6 +59,8 @@ details summary{font-weight:600;padding:2px 0}
 <section class="card" aria-live="polite">
 <label for="cur">Odometer now</label>
 <input id="cur" type="number" inputmode="numeric">
+<button class="ghost" id="park" style="margin-top:10px">I’ve parked: save this odometer</button>
+<p class="note" id="pmsg"></p>
 <div style="margin-top:16px" class="big"><span id="gal">–</span><small>gal left</small></div>
 <div class="gauge" id="g"><i style="left:0"></i><i style="left:50%"></i><i style="left:calc(100% - 2px)"></i><div class="needle" id="n" style="left:0"></div></div>
 <div class="ends"><span>E</span><span>one tank</span></div>
@@ -140,7 +142,7 @@ function hist(){
  var h=$("hist");h.innerHTML="";$("cnt").textContent=S.log.length+" fill-ups, newest first";
  S.log.slice().reverse().forEach(function(e){
   var li=document.createElement("li");
-  li.innerHTML="<span>"+e.d+" · "+(e.odo||"–")+"</span><span>+"+e.gal+" gal</span>";
+  li.innerHTML="<span>"+e.d+" · "+(e.odo||"–")+"</span><span>"+(e.park?"parked":"+"+e.gal+" gal")+"</span>";
   h.appendChild(li)});
 }
 function settings(){$("auto").checked=S.auto!==false;$("cal").textContent=S.calMsg||"";$("s0").value=S.name;$("s1").value=S.mpg;$("s2").value=S.cushion;$("s3").value=S.tank;shareUI()}
@@ -166,8 +168,8 @@ function calib(v){
  v.calKey=key;
  var e=[],carry=0;
  L.forEach(function(x){if(x.odo){e.push({o:x.odo,g:x.gal+carry});carry=0}else{carry+=x.gal}});
- var need=2*v.tank,gal=0,j=-1,i;
- for(i=e.length-1;i>=1;i--){gal+=e[i].g;if(gal>=need&&e.length-i>=6){j=i-1;break}}
+ var need=2*v.tank,gal=0,j=-1,i,n=0;
+ for(i=e.length-1;i>=1;i--){gal+=e[i].g;if(e[i].g>0)n++;if(gal>=need&&n>=6){j=i-1;break}}
  if(j<0){var have=0;for(i=1;i<e.length;i++)have+=e[i].g;v.calMsg="MPG check needs about "+Math.round(need)+" gallons logged. You have "+Math.round(have)+".";return}
  var miles=e[e.length-1].o-e[j].o;
  if(miles<=0){v.calMsg="MPG check skipped: odometer readings don’t add up.";return}
