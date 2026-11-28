@@ -206,7 +206,7 @@ eq("calib skipped when auto off", veh.mpg, 18);
 
 extractFillAfter();
 is("fill-after formula present in index.html", true);
-is("park blocked before fill-up", /if\(!hasFill\(\)\)\{m\.textContent="Save a fill-up first\."/.test(syncSrc));
+is("park is not blocked before a fill-up", !/Save a fill-up first/.test(syncSrc));
 is("manual mpg now pushes shared meta", /if\(S\.shared\)pushMeta\(S\);draw\(\)/.test(html));
 is("undo calls calib", /calib\(S\);save\(\);\$\("cur"\)\.value=last\(\)\?last\(\)\.odo:""/.test(html));
 is("localStorage key unchanged", /var K="f150fuel-v3"/.test(html));

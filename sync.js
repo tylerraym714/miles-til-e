@@ -33,7 +33,6 @@ function sync(v){
 function sendCode(v){var t="Join my vehicle “"+v.name+"” in Miles til E. Tap Join and enter this code: "+fmtCode(v.shared);if(navigator.share){navigator.share({text:t}).catch(function(){})}else{prompt("Copy this code and send it:",fmtCode(v.shared))}}
 function wireSync(){
  $("park").onclick=function(){var o=parseFloat($("cur").value),m=$("pmsg"),L=last();
-  if(!hasFill()){m.textContent="Save a fill-up first.";return}
   if(isNaN(o)){m.textContent="Type your odometer reading first.";return}
   if(L&&o<L.odo){m.textContent="That’s lower than your last entry ("+L.odo+").";return}
   if(L&&o===L.odo){m.textContent="No new miles since your last entry.";return}
