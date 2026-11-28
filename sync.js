@@ -4,14 +4,21 @@ function genCode(){var a="abcdefghjkmnpqrstuvwxyz23456789",b=new Uint8Array(16),
 function fmtCode(c){return c.match(/.{1,4}/g).join("-")}
 function normCode(c){return String(c||"").toLowerCase().replace(/[^a-z0-9]/g,"")}
 function newId(){return "e"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
-function metaOf(v){return {name:v.name,tank:v.tank,cushion:v.cushion,mpg:v.mpg,t:v.metaT||Date.now()}}
-function pushMeta(v){v.metaT=Date.now();save();fbx("PUT","/shared/"+v.shared+"/meta",metaOf(v)).catch(function(){})}
+function metaOf(v){return {name:v.name,tank:v.tank,cushion:v.cushion,mpg:v.mpg,t:v.metaT||Date.now(),note:{text:v.note||"",t:v.noteT||0}}}
+function noteFromMeta(m){if(!m)return {text:"",t:0};var n=m.note;if(n&&typeof n==="object")return {text:String(n.text||""),t:n.t||0};if(typeof n==="string")return {text:n,t:m.noteT||0};return {text:"",t:0}}
+function applyNote(v,m){var r=noteFromMeta(m),lt=v.noteT||0;if(r.t>lt){v.note=r.text;v.noteT=r.t;return true}return false}
+function noteAhead(v,m){return (v.noteT||0)>(noteFromMeta(m).t||0)}
+function pushNote(v){if(!v||!v.shared)return;fbx("PUT","/shared/"+v.shared+"/meta/note",{text:v.note||"",t:v.noteT||Date.now()}).catch(function(){})}
+function showNote(){var el=$("vnote");if(!el||document.activeElement===el)return;el.value=S.note||""}
+function noteTyping(){var el=$("vnote");return el&&document.activeElement===el}
+function commitNote(){var el=$("vnote");if(!el)return;var val=el.value;if(val===(S.note||""))return;S.note=val;S.noteT=Date.now();save();if(S.shared)pushNote(S)}
+function pushMeta(v){v.metaT=Date.now();save();fbx("PATCH","/shared/"+v.shared+"/meta",{name:v.name,tank:v.tank,cushion:v.cushion,mpg:v.mpg,t:v.metaT}).catch(function(){})}
 function rebuild(v){
  v.log.sort(function(a,b){return (a.odo||0)-(b.odo||0)||(a.t||0)-(b.t||0)});
  var prev=null,aft=0;
  v.log.forEach(function(e){var mi=(prev&&e.odo&&prev.odo)?e.odo-prev.odo:0;var b=prev?Math.max(0,aft-mi/v.mpg):0;aft=Math.round(Math.min(v.tank,typeof e.a==="number"?e.a:(e.full?v.tank:b+e.gal))*10)/10;e.after=aft;prev=e})}
 function shareUI(){var s=!!S.shared;$("sync").textContent=s?(S.syncMsg||"Shared · syncing…"):"";$("code").textContent=s?"Share code: "+fmtCode(S.shared):"";$("sharev").hidden=s;$("sendv").hidden=!s;$("unsharev").hidden=!s}
-function uiSync(prev){vsel();var c=$("cur"),L=last();if(L&&(c.value===""||c.value===String(prev)))c.value=L.odo;hist();draw();var a=document.activeElement;if(!a||a.tagName!=="INPUT")settings();else shareUI()}
+function uiSync(prev){vsel();var c=$("cur"),L=last();if(L&&(c.value===""||c.value===String(prev)))c.value=L.odo;hist();draw();showNote();var a=document.activeElement;if(!a||(a.tagName!=="INPUT"&&a.tagName!=="TEXTAREA"))settings();else shareUI()}
 function sync(v){
  if(!v||!v.shared||v.busy)return Promise.resolve();
  v.busy=true;
@@ -24,7 +31,9 @@ function sync(v){
   var jobs=[];
   v.log.forEach(function(e){if(!re[e.id])jobs.push(fbx("PUT",base+"/entries/"+e.id,{d:e.d,odo:e.odo||null,gal:e.gal,full:!!e.full,t:e.t||0,a:e.a,park:e.park||undefined}))});
   Object.keys(v.dead).forEach(function(id){if(!re[id]||!re[id].del)jobs.push(fbx("PUT",base+"/entries/"+id,{del:true,t:Date.now()}))});
-  if(r.meta){if((r.meta.t||0)>(v.metaT||0)){v.name=r.meta.name||v.name;v.tank=r.meta.tank||v.tank;v.cushion=r.meta.cushion||v.cushion;v.mpg=r.meta.mpg||v.mpg;v.metaT=r.meta.t}}
+  if(r.meta){if((r.meta.t||0)>(v.metaT||0)){v.name=r.meta.name||v.name;v.tank=r.meta.tank||v.tank;v.cushion=r.meta.cushion||v.cushion;v.mpg=r.meta.mpg||v.mpg;v.metaT=r.meta.t}
+   if(!(v===S&&noteTyping())&&applyNote(v,r.meta)){}
+   else if(noteAhead(v,r.meta))jobs.push(fbx("PUT",base+"/meta/note",{text:v.note||"",t:v.noteT||Date.now()}))}
   else jobs.push(fbx("PUT",base+"/meta",metaOf(v)));
   rebuild(v);calib(v);
   v.syncMsg="Shared · synced "+new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
@@ -32,6 +41,9 @@ function sync(v){
  }).catch(function(){v.syncMsg="Shared · can’t reach the online log. Showing this phone’s copy."}).then(function(){v.busy=false;save();if(v===S)uiSync(prev)})}
 function sendCode(v){var t="Join my vehicle “"+v.name+"” in Miles til E. Tap Join and enter this code: "+fmtCode(v.shared);if(navigator.share){navigator.share({text:t}).catch(function(){})}else{prompt("Copy this code and send it:",fmtCode(v.shared))}}
 function wireSync(){
+ var noteTimer=null;
+ $("vnote").addEventListener("input",function(){clearTimeout(noteTimer);noteTimer=setTimeout(function(){noteTimer=null;commitNote()},1000)});
+ $("vnote").addEventListener("blur",function(){clearTimeout(noteTimer);noteTimer=null;commitNote()});
  $("park").onclick=function(){var o=parseFloat($("cur").value),m=$("pmsg"),L=last();
   if(isNaN(o)){m.textContent="Type your odometer reading first.";return}
   if(L&&o<L.odo){m.textContent="That’s lower than your last entry ("+L.odo+").";return}
@@ -50,7 +62,7 @@ function wireSync(){
   if(c.length<12){alert("That code looks too short.");return}
   var ex=DB.v.filter(function(x){return x.shared===c})[0];if(ex){DB.a=ex.id;pick();save();refresh();return}
   fbx("GET","/shared/"+c+"/meta").then(function(m){if(!m){alert("No vehicle found for that code. Check it and try again.");return}
-   var v=mk(m.name||"Shared vehicle");v.mpg=m.mpg||v.mpg;v.tank=m.tank||v.tank;v.cushion=m.cushion||v.cushion;v.shared=c;v.dead={};v.metaT=m.t||0;DB.v.push(v);DB.a=v.id;pick();save();refresh();return sync(v)}).catch(function(){alert("Couldn’t reach the online database. Check your connection.")})};
+   var v=mk(m.name||"Shared vehicle");v.mpg=m.mpg||v.mpg;v.tank=m.tank||v.tank;v.cushion=m.cushion||v.cushion;v.shared=c;v.dead={};v.metaT=m.t||0;applyNote(v,m);DB.v.push(v);DB.a=v.id;pick();save();refresh();return sync(v)}).catch(function(){alert("Couldn’t reach the online database. Check your connection.")})};
  $("auto").onchange=function(){S.auto=this.checked;if(S.auto){S.calKey=null;calib(S)}save();settings();draw()};
  setInterval(function(){if(!document.hidden&&S&&S.shared)sync(S)},20000);
  document.addEventListener("visibilitychange",function(){if(!document.hidden&&S&&S.shared)sync(S)});
