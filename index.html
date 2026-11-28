@@ -47,6 +47,11 @@ select{flex:1;min-width:0;font:600 18px Barlow,sans-serif;color:var(--ink);backg
 .vrow{display:flex;gap:10px;align-items:stretch;margin-bottom:14px}
 .vrow button{width:auto;margin:0;font-size:15px}
 details summary{font-weight:600;padding:2px 0}
+.noterow{display:flex;justify-content:flex-end;margin:0 0 10px}
+.vnote{width:58%;max-width:230px;height:4.2em;resize:none;font:500 16px/1.3 Barlow,system-ui,sans-serif;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.vnote:focus{outline:none;border-color:var(--ink)}
+.vnote:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.vnote::placeholder{color:var(--mute)}
 </style>
 </head>
 <body>
@@ -57,6 +62,7 @@ details summary{font-weight:600;padding:2px 0}
 <p class="note" id="sync" style="margin:-6px 0 12px"></p>
 
 <section class="card" aria-live="polite">
+<div class="noterow"><textarea id="vnote" class="vnote" rows="3" maxlength="280" placeholder="Notes" aria-label="Notes"></textarea></div>
 <label for="cur">Odometer now</label>
 <input id="cur" type="number" inputmode="numeric">
 <button class="ghost" id="park" style="margin-top:10px">I’ve parked: save this odometer</button>
@@ -158,7 +164,7 @@ function hist(){
   h.appendChild(li)});
  firstFillUI();
 }
-function settings(){$("auto").checked=S.auto!==false;$("cal").textContent=S.calMsg||"";$("s0").value=S.name;$("s1").value=S.mpg;$("s2").value=S.cushion;$("s3").value=S.tank;shareUI()}
+function settings(){$("auto").checked=S.auto!==false;$("cal").textContent=S.calMsg||"";$("s0").value=S.name;$("s1").value=S.mpg;$("s2").value=S.cushion;$("s3").value=S.tank;shareUI();showNote()}
 $("cur").addEventListener("input",draw);
 $("ff").addEventListener("change",firstFillUI);
 $("add").onclick=function(){

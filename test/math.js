@@ -54,7 +54,11 @@ eval("var S = ctx.S;\nvar last = ctx.last;\n" +
   grab(html, "hasFill") + "\n" +
   grab(html, "calib") + "\n" +
   grab(syncSrc, "rebuild") + "\n" +
-  "ctx.est = est; ctx.r1 = r1; ctx.today = today; ctx.fmtD = fmtD; ctx.hasFill = hasFill; ctx.calib = calib; ctx.rebuild = rebuild;");
+  grab(syncSrc, "noteFromMeta") + "\n" +
+  grab(syncSrc, "applyNote") + "\n" +
+  grab(syncSrc, "noteAhead") + "\n" +
+  grab(syncSrc, "metaOf") + "\n" +
+  "ctx.est = est; ctx.r1 = r1; ctx.today = today; ctx.fmtD = fmtD; ctx.hasFill = hasFill; ctx.calib = calib; ctx.rebuild = rebuild; ctx.noteFromMeta = noteFromMeta; ctx.applyNote = applyNote; ctx.noteAhead = noteAhead; ctx.metaOf = metaOf;");
 
 function fillAfter(opts) {
   var first = opts.first, start = opts.start || 0, tank = opts.tank, g = opts.g, full = !!opts.full, beforeEst = opts.beforeEst;
@@ -211,6 +215,64 @@ is("manual mpg now pushes shared meta", /if\(S\.shared\)pushMeta\(S\);draw\(\)/.
 is("undo calls calib", /calib\(S\);save\(\);\$\("cur"\)\.value=last\(\)\?last\(\)\.odo:""/.test(html));
 is("localStorage key unchanged", /var K="f150fuel-v3"/.test(html));
 is("Firebase path unchanged", /\/shared\/"\+v\.shared/.test(syncSrc));
+
+console.log("note merge()");
+var n;
+n = ctx.noteFromMeta(undefined);
+eq("noteFromMeta missing meta is empty", n.text, "");
+eq("noteFromMeta missing meta t is 0", n.t, 0);
+n = ctx.noteFromMeta({});
+eq("noteFromMeta no note field is empty", n.text, "");
+n = ctx.noteFromMeta({note:{text:"Spare key in visor", t:200}});
+eq("noteFromMeta object text", n.text, "Spare key in visor");
+eq("noteFromMeta object t", n.t, 200);
+n = ctx.noteFromMeta({note:"Leave a quarter tank", noteT:150});
+eq("noteFromMeta string text", n.text, "Leave a quarter tank");
+eq("noteFromMeta string uses noteT", n.t, 150);
+n = ctx.noteFromMeta({note:{text:"", t:9}});
+eq("noteFromMeta empty text with t", n.text, "");
+eq("noteFromMeta empty text keeps t", n.t, 9);
+
+var veh = {note:"local", noteT:100};
+is("applyNote remote newer wins", ctx.applyNote(veh, {note:{text:"from phone", t:200}}));
+eq("applyNote updated text", veh.note, "from phone");
+eq("applyNote updated t", veh.noteT, 200);
+
+veh = {note:"keep me", noteT:300};
+is("applyNote older remote is ignored", !ctx.applyNote(veh, {note:{text:"stale", t:200}}));
+eq("applyNote kept local text", veh.note, "keep me");
+eq("applyNote kept local t", veh.noteT, 300);
+
+veh = {note:"tie", noteT:200};
+is("applyNote equal timestamps keep local", !ctx.applyNote(veh, {note:{text:"other", t:200}}));
+eq("applyNote tie text unchanged", veh.note, "tie");
+
+veh = {};
+is("applyNote fills a vehicle with no note", ctx.applyNote(veh, {note:{text:"hello", t:5}}));
+eq("applyNote set text on bare vehicle", veh.note, "hello");
+
+veh = {note:"mine", noteT:50};
+is("applyNote missing remote note does not clear local", !ctx.applyNote(veh, {name:"Truck"}));
+eq("applyNote local remains when remote has no note", veh.note, "mine");
+
+veh = {note:"newer local", noteT:400};
+is("noteAhead when local is newer", ctx.noteAhead(veh, {note:{text:"old", t:100}}));
+is("noteAhead false when remote is newer", !ctx.noteAhead({note:"x", noteT:10}, {note:{text:"y", t:20}}));
+is("noteAhead false when equal", !ctx.noteAhead({note:"x", noteT:20}, {note:{text:"y", t:20}}));
+is("noteAhead true for local note vs empty remote", ctx.noteAhead({note:"x", noteT:1}, {}));
+
+var meta = ctx.metaOf({name:"Truck", tank:15, cushion:30, mpg:20, metaT:1, note:"Park facing out", noteT:42});
+eq("metaOf includes note text", meta.note.text, "Park facing out");
+eq("metaOf includes note t", meta.note.t, 42);
+meta = ctx.metaOf({name:"Truck", tank:15, cushion:30, mpg:20, metaT:1});
+eq("metaOf missing note is empty text", meta.note.text, "");
+eq("metaOf missing note t is 0", meta.note.t, 0);
+
+is("notes box is in the status card", /id="vnote"/.test(html) && /placeholder="Notes"/.test(html));
+is("note push path is meta\/note", /\/shared\/"\+v\.shared\+"\/meta\/note"/.test(syncSrc));
+is("note commit is debounced at 1s", /setTimeout\(function\(\)\{noteTimer=null;commitNote\(\)\},1000\)/.test(syncSrc));
+is("showNote skips when the box is focused", /document\.activeElement===el/.test(syncSrc));
+is("SW cache bumped to mte-v4", /var C="mte-v4"/.test(fs.readFileSync(path.join(root, "sw.js"), "utf8")));
 
 console.log("\n" + passed + " passed, " + failed + " failed");
 if (failed) process.exit(1);
