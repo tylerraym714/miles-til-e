@@ -74,6 +74,11 @@ details summary{font-weight:600;padding:2px 0}
 <section class="card">
 <label for="fo">Odometer at fill-up</label>
 <input id="fo" type="number" inputmode="numeric">
+<div id="startwrap">
+<label for="fs" style="margin-top:14px">Already in the tank (gallons)</label>
+<input id="fs" type="number" inputmode="decimal" step="0.01" min="0">
+<p class="note">Leave this at 0 if the tank was empty. Or check the box below if you filled to the top.</p>
+</div>
 <label for="fg" style="margin-top:14px">Gallons added</label>
 <input id="fg" type="number" inputmode="decimal" step="0.01">
 <label class="chk"><input id="ff" type="checkbox"> I filled one tank to the top</label>
@@ -101,7 +106,7 @@ details summary{font-weight:600;padding:2px 0}
 <label class="chk"><input id="auto" type="checkbox"> Auto-adjust mpg from my log</label>
 <p class="note" id="cal"></p>
 <button class="ghost" id="delv" style="margin-top:16px">Delete this vehicle</button>
-<p class="note">Estimates only. The first entry assumes the tank was empty before it. Check the gauge and leave a margin.</p>
+<p class="note">Estimates only. On the first fill, say how much was already in the tank, or fill to the top. Check the gauge and leave a margin.</p>
 </details>
 </section>
 </main>
@@ -122,12 +127,15 @@ pick();
 function save(){try{localStorage.setItem(K,JSON.stringify(DB))}catch(e){}}
 function $(i){return document.getElementById(i)}
 function last(){return S.log[S.log.length-1]}
-function est(odo){var l=last();if(!l)return 0;var base=(typeof l.after==="number"&&isFinite(l.after))?l.after:l.gal;if(!l.odo)return base;return Math.max(0,base-(odo-l.odo)/S.mpg)}
+function est(odo){var l=last();if(!l)return 0;var base=(typeof l.after==="number"&&isFinite(l.after))?l.after:l.gal;if(!l.odo)return Math.min(S.tank,base);return Math.max(0,Math.min(S.tank,base-(odo-l.odo)/S.mpg))}
 function r1(x){return Math.round(x*10)/10}
-function today(){var t=new Date();return (t.getMonth()+1)+"/"+t.getDate()}
+function today(){var t=new Date();return (t.getMonth()+1)+"/"+t.getDate()+"/"+t.getFullYear()}
+function fmtD(d){var p=String(d||"").split("/");if(p.length>=3&&String(p[2])===String(new Date().getFullYear()))return p[0]+"/"+p[1];return d||""}
+function hasFill(){return S.log.some(function(e){return !e.park})}
+function firstFillUI(){var show=!hasFill()&&!$("ff").checked;$("startwrap").hidden=!show;if(hasFill())$("fs").value=""}
 function draw(){
  var odo=parseFloat($("cur").value);
- if(!last()){$("gal").textContent="–";$("mi").textContent="–";$("by").textContent="–";$("msg").textContent="Add your first fill-up below. The app assumes the tank was empty before it.";return}
+ if(!last()){$("gal").textContent="–";$("mi").textContent="–";$("by").textContent="–";$("msg").textContent="Add your first fill-up below. Say how much was already in the tank, or fill to the top.";return}
  if(isNaN(odo)){odo=last().odo}
  var m=$("msg");
  if(odo<last().odo){$("gal").textContent="–";$("mi").textContent="–";$("by").textContent="–";m.textContent="That’s lower than your last entry ("+last().odo+").";return}
@@ -139,27 +147,37 @@ function draw(){
  m.textContent=odo>=by?"Past your refuel-by number. Stop for fuel.":"Empty is near "+Math.round(empty)+". Last fill: "+last().odo+".";
 }
 function hist(){
- var h=$("hist");h.innerHTML="";$("cnt").textContent=S.log.length+" fill-ups, newest first";
+ var h=$("hist");h.innerHTML="";
+ var fills=0,parks=0,i;
+ for(i=0;i<S.log.length;i++){if(S.log[i].park)parks++;else fills++}
+ if(!S.log.length)$("cnt").textContent="No entries yet";
+ else{var c=[];if(fills)c.push(fills+" fill-up"+(fills===1?"":"s"));if(parks)c.push(parks+" parked");$("cnt").textContent=c.join(" · ")+", newest first"}
  S.log.slice().reverse().forEach(function(e){
   var li=document.createElement("li");
-  li.innerHTML="<span>"+e.d+" · "+(e.odo||"–")+"</span><span>"+(e.park?"parked":"+"+e.gal+" gal")+"</span>";
+  li.innerHTML="<span>"+fmtD(e.d)+" · "+(e.odo||"–")+"</span><span>"+(e.park?"parked":"+"+e.gal+" gal")+"</span>";
   h.appendChild(li)});
+ firstFillUI();
 }
 function settings(){$("auto").checked=S.auto!==false;$("cal").textContent=S.calMsg||"";$("s0").value=S.name;$("s1").value=S.mpg;$("s2").value=S.cushion;$("s3").value=S.tank;shareUI()}
 $("cur").addEventListener("input",draw);
+$("ff").addEventListener("change",firstFillUI);
 $("add").onclick=function(){
  var o=parseFloat($("fo").value),g=parseFloat($("fg").value),f=$("fmsg");
  if(isNaN(o)||isNaN(g)||g<=0){f.textContent="Enter the odometer and the gallons added.";return}
  if(last()&&o<last().odo){f.textContent="Odometer is lower than your last entry ("+last().odo+").";return}
- var before=est(o),after=$("ff").checked?S.tank:before+g;
- S.log.push({id:newId(),t:Date.now(),full:$("ff").checked,d:today(),odo:o,gal:g,after:r1(after)});if(S.shared){rebuild(S);var vv=S;setTimeout(function(){sync(vv)},0)}calib(S);
- save();$("fo").value="";$("fg").value="";$("ff").checked=false;$("cur").value=o;
+ var first=!hasFill(),start=0;
+ if(first){start=parseFloat($("fs").value);if(isNaN(start)||start<0)start=0;if(start>S.tank)start=S.tank}
+ var before=first?start:est(o),after=$("ff").checked?S.tank:Math.min(S.tank,before+g);
+ var e={id:newId(),t:Date.now(),full:$("ff").checked,d:today(),odo:o,gal:g,after:r1(after)};
+ if(first&&!e.full&&start>0)e.a=r1(after);
+ S.log.push(e);if(S.shared){rebuild(S);var vv=S;setTimeout(function(){sync(vv)},0)}calib(S);
+ save();$("fo").value="";$("fg").value="";$("ff").checked=false;$("fs").value="";$("cur").value=o;
  f.textContent="Saved.";hist();settings();draw();
 };
-$("undo").onclick=function(){if(S.log.length>0){var x=S.log.pop();if(S.shared){if(x.id)S.dead[x.id]=1;rebuild(S);var vv2=S;setTimeout(function(){sync(vv2)},0)}save();$("cur").value=last()?last().odo:"";hist();draw();$("fmsg").textContent=""}};
+$("undo").onclick=function(){if(S.log.length>0){var x=S.log.pop();if(S.shared){if(x.id)S.dead[x.id]=1;rebuild(S);var vv2=S;setTimeout(function(){sync(vv2)},0)}calib(S);save();$("cur").value=last()?last().odo:"";hist();settings();draw();$("fmsg").textContent=""}};
 $("reset").onclick=function(){if(S.shared){alert("This vehicle is shared, so clearing it would erase it for everyone. Use Delete last entry, or stop sharing first.");return}if(confirm("Clear every entry and start fresh?")){S.log=[];save();$("cur").value="";hist();draw();$("fmsg").textContent=""}};
 [["s1","mpg"],["s2","cushion"],["s3","tank"]].forEach(function(p){
- $(p[0]).addEventListener("change",function(){var v=parseFloat(this.value);if(v>0){S[p[1]]=v;save();if(S.shared&&p[1]!=="mpg")pushMeta(S);draw()}})});
+ $(p[0]).addEventListener("change",function(){var v=parseFloat(this.value);if(v>0){S[p[1]]=v;save();if(S.shared)pushMeta(S);draw()}})});
 function calib(v){
  if(v.auto===false)return;
  var L=v.log;if(!L.length)return;

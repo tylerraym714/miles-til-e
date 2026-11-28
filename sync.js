@@ -9,7 +9,7 @@ function pushMeta(v){v.metaT=Date.now();save();fbx("PUT","/shared/"+v.shared+"/m
 function rebuild(v){
  v.log.sort(function(a,b){return (a.odo||0)-(b.odo||0)||(a.t||0)-(b.t||0)});
  var prev=null,aft=0;
- v.log.forEach(function(e){var mi=(prev&&e.odo&&prev.odo)?e.odo-prev.odo:0;var b=prev?Math.max(0,aft-mi/v.mpg):0;aft=Math.round((typeof e.a==="number"?e.a:(e.full?v.tank:b+e.gal))*10)/10;e.after=aft;prev=e})}
+ v.log.forEach(function(e){var mi=(prev&&e.odo&&prev.odo)?e.odo-prev.odo:0;var b=prev?Math.max(0,aft-mi/v.mpg):0;aft=Math.round(Math.min(v.tank,typeof e.a==="number"?e.a:(e.full?v.tank:b+e.gal))*10)/10;e.after=aft;prev=e})}
 function shareUI(){var s=!!S.shared;$("sync").textContent=s?(S.syncMsg||"Shared · syncing…"):"";$("code").textContent=s?"Share code: "+fmtCode(S.shared):"";$("sharev").hidden=s;$("sendv").hidden=!s;$("unsharev").hidden=!s}
 function uiSync(prev){vsel();var c=$("cur"),L=last();if(L&&(c.value===""||c.value===String(prev)))c.value=L.odo;hist();draw();var a=document.activeElement;if(!a||a.tagName!=="INPUT")settings();else shareUI()}
 function sync(v){
@@ -24,7 +24,7 @@ function sync(v){
   var jobs=[];
   v.log.forEach(function(e){if(!re[e.id])jobs.push(fbx("PUT",base+"/entries/"+e.id,{d:e.d,odo:e.odo||null,gal:e.gal,full:!!e.full,t:e.t||0,a:e.a,park:e.park||undefined}))});
   Object.keys(v.dead).forEach(function(id){if(!re[id]||!re[id].del)jobs.push(fbx("PUT",base+"/entries/"+id,{del:true,t:Date.now()}))});
-  if(r.meta){if((r.meta.t||0)>(v.metaT||0)){v.name=r.meta.name||v.name;v.tank=r.meta.tank||v.tank;v.cushion=r.meta.cushion||v.cushion;v.metaT=r.meta.t}}
+  if(r.meta){if((r.meta.t||0)>(v.metaT||0)){v.name=r.meta.name||v.name;v.tank=r.meta.tank||v.tank;v.cushion=r.meta.cushion||v.cushion;v.mpg=r.meta.mpg||v.mpg;v.metaT=r.meta.t}}
   else jobs.push(fbx("PUT",base+"/meta",metaOf(v)));
   rebuild(v);calib(v);
   v.syncMsg="Shared · synced "+new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
@@ -33,6 +33,7 @@ function sync(v){
 function sendCode(v){var t="Join my vehicle “"+v.name+"” in Miles til E. Tap Join and enter this code: "+fmtCode(v.shared);if(navigator.share){navigator.share({text:t}).catch(function(){})}else{prompt("Copy this code and send it:",fmtCode(v.shared))}}
 function wireSync(){
  $("park").onclick=function(){var o=parseFloat($("cur").value),m=$("pmsg"),L=last();
+  if(!hasFill()){m.textContent="Save a fill-up first.";return}
   if(isNaN(o)){m.textContent="Type your odometer reading first.";return}
   if(L&&o<L.odo){m.textContent="That’s lower than your last entry ("+L.odo+").";return}
   if(L&&o===L.odo){m.textContent="No new miles since your last entry.";return}
