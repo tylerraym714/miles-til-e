@@ -270,9 +270,13 @@ eq("metaOf missing note t is 0", meta.note.t, 0);
 
 is("notes box is in the status card", /id="vnote"/.test(html) && /placeholder="Notes"/.test(html));
 is("note push path is meta\/note", /\/shared\/"\+v\.shared\+"\/meta\/note"/.test(syncSrc));
-is("note commit is debounced at 1s", /setTimeout\(function\(\)\{noteTimer=null;commitNote\(\)\},1000\)/.test(syncSrc));
+is("note saves locally on each input", /addEventListener\("input",function\(\)\{writeNote\(false\)/.test(syncSrc));
+is("shared note push is still debounced at 1s", /setTimeout\(function\(\)\{noteTimer=null;writeNote\(true\)\},1000\)/.test(syncSrc));
+is("note flushes on blur", /addEventListener\("blur",function\(\)\{clearTimeout\(noteTimer\);noteTimer=null;writeNote\(true\)\}/.test(syncSrc));
+is("note flushes when the page is hidden", /pagehide/.test(syncSrc) && /document\.hidden\)\{writeNote\(true\)/.test(syncSrc));
 is("showNote skips when the box is focused", /document\.activeElement===el/.test(syncSrc));
-is("SW cache bumped to mte-v4", /var C="mte-v4"/.test(fs.readFileSync(path.join(root, "sw.js"), "utf8")));
+is("SW cache bumped to mte-v5", /var C="mte-v5"/.test(fs.readFileSync(path.join(root, "sw.js"), "utf8")));
+is("writeNote persists to localStorage immediately", /function writeNote\(push\)\{[^}]*save\(\)/.test(syncSrc));
 
 console.log("\n" + passed + " passed, " + failed + " failed");
 if (failed) process.exit(1);

@@ -11,7 +11,7 @@ function noteAhead(v,m){return (v.noteT||0)>(noteFromMeta(m).t||0)}
 function pushNote(v){if(!v||!v.shared)return;fbx("PUT","/shared/"+v.shared+"/meta/note",{text:v.note||"",t:v.noteT||Date.now()}).catch(function(){})}
 function showNote(){var el=$("vnote");if(!el||document.activeElement===el)return;el.value=S.note||""}
 function noteTyping(){var el=$("vnote");return el&&document.activeElement===el}
-function commitNote(){var el=$("vnote");if(!el)return;var val=el.value;if(val===(S.note||""))return;S.note=val;S.noteT=Date.now();save();if(S.shared)pushNote(S)}
+function writeNote(push){var el=$("vnote");if(!el)return;var val=el.value;if(val!==(S.note||"")){S.note=val;S.noteT=Date.now();save()}if(push&&S.shared)pushNote(S)}
 function pushMeta(v){v.metaT=Date.now();save();fbx("PATCH","/shared/"+v.shared+"/meta",{name:v.name,tank:v.tank,cushion:v.cushion,mpg:v.mpg,t:v.metaT}).catch(function(){})}
 function rebuild(v){
  v.log.sort(function(a,b){return (a.odo||0)-(b.odo||0)||(a.t||0)-(b.t||0)});
@@ -42,8 +42,8 @@ function sync(v){
 function sendCode(v){var t="Join my vehicle “"+v.name+"” in Miles til E. Tap Join and enter this code: "+fmtCode(v.shared);if(navigator.share){navigator.share({text:t}).catch(function(){})}else{prompt("Copy this code and send it:",fmtCode(v.shared))}}
 function wireSync(){
  var noteTimer=null;
- $("vnote").addEventListener("input",function(){clearTimeout(noteTimer);noteTimer=setTimeout(function(){noteTimer=null;commitNote()},1000)});
- $("vnote").addEventListener("blur",function(){clearTimeout(noteTimer);noteTimer=null;commitNote()});
+ $("vnote").addEventListener("input",function(){writeNote(false);clearTimeout(noteTimer);noteTimer=setTimeout(function(){noteTimer=null;writeNote(true)},1000)});
+ $("vnote").addEventListener("blur",function(){clearTimeout(noteTimer);noteTimer=null;writeNote(true)});
  $("park").onclick=function(){var o=parseFloat($("cur").value),m=$("pmsg"),L=last();
   if(isNaN(o)){m.textContent="Type your odometer reading first.";return}
   if(L&&o<L.odo){m.textContent="That’s lower than your last entry ("+L.odo+").";return}
@@ -65,5 +65,6 @@ function wireSync(){
    var v=mk(m.name||"Shared vehicle");v.mpg=m.mpg||v.mpg;v.tank=m.tank||v.tank;v.cushion=m.cushion||v.cushion;v.shared=c;v.dead={};v.metaT=m.t||0;applyNote(v,m);DB.v.push(v);DB.a=v.id;pick();save();refresh();return sync(v)}).catch(function(){alert("Couldn’t reach the online database. Check your connection.")})};
  $("auto").onchange=function(){S.auto=this.checked;if(S.auto){S.calKey=null;calib(S)}save();settings();draw()};
  setInterval(function(){if(!document.hidden&&S&&S.shared)sync(S)},20000);
- document.addEventListener("visibilitychange",function(){if(!document.hidden&&S&&S.shared)sync(S)});
+ document.addEventListener("visibilitychange",function(){if(document.hidden){writeNote(true);return}if(S&&S.shared)sync(S)});
+ window.addEventListener("pagehide",function(){writeNote(true)});
  window.addEventListener("online",function(){if(S&&S.shared)sync(S)})}
